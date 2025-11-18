@@ -22,10 +22,15 @@ bindir  = $(prefix)/bin
 CC      = cc
 CFLAGS  = -g -Wall -O3
 LDLIBS  = -lcrypto -lz
-RCOBJ   = read-cache.o
-OBJS    = init-db.o update-cache.o write-tree.o commit-tree.o read-tree.o \
-              cat-file.o show-diff.o 
-PROGS  := $(subst .o,,$(OBJS))
+
+OBJ_DIR    = obj
+TARGET_DIR = target
+BASE_RCOBJ   = read-cache.o
+BASE_OBJS    = init-db.o update-cache.o write-tree.o commit-tree.o read-tree.o \
+               cat-file.o show-diff.o
+RCOBJ   = $(addprefix $(OBJ_DIR)/, $(BASE_RCOBJ))
+OBJS    = $(addprefix $(OBJ_DIR)/, $(BASE_OBJS))
+PROGS  := $(addprefix $(TARGET_DIR)/, $(subst .o,,$(BASE_OBJS)))
 
 ifeq ($(OS),Windows_NT)
     CFLAGS += -D BGIT_WINDOWS
@@ -47,41 +52,27 @@ else
     endif
 endif
 
-OBJS   += $(RCOBJ)
+.PHONY : all install clean backup test dirs
 
-.PHONY : all install clean backup test
+.SECONDARY: $(OBJS) $(RCOBJ)
 
-all    : $(PROGS)
+all    : dirs $(PROGS)
 
-init-db      : init-db.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+dirs:
+	@mkdir -p $(OBJ_DIR) $(TARGET_DIR)
 
-update-cache : update-cache.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+$(TARGET_DIR)/%: $(OBJ_DIR)/%.o $(RCOBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-write-tree   : write-tree.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
-
-commit-tree  : commit-tree.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
-
-read-tree    : read-tree.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
-
-cat-file     : cat-file.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
-
-show-diff    : show-diff.o $(RCOBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
-
-$(OBJS) : cache.h
+$(OBJ_DIR)/%.o: %.c cache.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 install : $(PROGS)
 	$(INSTALL) $(PROGS) $(bindir)
 
 clean   :
-	rm -f $(OBJS) $(PROGS)
+	rm -rf $(OBJ_DIR) $(TARGET_DIR)
 
 backup  : clean
 	cd ..; tar czvf babygit.tar.gz baby-git --exclude .git* \
