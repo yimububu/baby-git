@@ -39,7 +39,9 @@ else
             CFLAGS += -D BGIT_UNIX
         else
             ifeq ($(SYSTEM),Darwin)
-                CFLAGS += -D BGIT_DARWIN
+                OPENSSL_PATH := $(shell brew --prefix openssl)
+                CFLAGS += -D BGIT_DARWIN -I$(OPENSSL_PATH)/include
+                LDFLAGS = -L$(OPENSSL_PATH)/lib
             endif
         endif
     endif
@@ -52,25 +54,25 @@ OBJS   += $(RCOBJ)
 all    : $(PROGS)
 
 init-db      : init-db.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 update-cache : update-cache.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 write-tree   : write-tree.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 commit-tree  : commit-tree.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 read-tree    : read-tree.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 cat-file     : cat-file.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 show-diff    : show-diff.o $(RCOBJ)
-	$(CC) $(CFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $@.o $(RCOBJ) $(LDLIBS)
 
 $(OBJS) : cache.h
 
