@@ -111,3 +111,4 @@ CFLAGS  = -g -Wall -O3
 **补充文档**
 
 - [init-db.c 作用与设计说明](doc/init-db.md)
+- [update-cache.c 作用与设计说明](doc/update-cache.md)
