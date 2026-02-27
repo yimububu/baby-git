@@ -112,3 +112,4 @@ CFLAGS  = -g -Wall -O3
 
 - [init-db.c 作用与设计说明](doc/init-db.md)
 - [update-cache.c 作用与设计说明](doc/update-cache.md)
+- [write-tree.c 作用与设计说明](doc/write-tree.md)
