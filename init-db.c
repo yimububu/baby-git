@@ -34,10 +34,13 @@
 
 #include "cache.h"
 
-#ifndef BGIT_WINDOWS
-    #define MKDIR( path ) ( mkdir( path, 0700 ) )
+/**
+ * 条件编译
+ */
+#ifndef BGIT_WINDOWS // 非 Windows
+    #define MKDIR( path ) ( mkdir( path, 0700 ) ) // 定义宏，创建 Unix 目录，Unix 下权限 0700（仅所有者可读写执行）
 #else
-    #define MKDIR( path ) ( _mkdir( path ) )
+    #define MKDIR( path ) ( _mkdir( path ) ) // Windows 使用 _mkdir 创建目录
 #endif
 
 /* The above 'include' allows use of the following functions and
@@ -139,24 +142,24 @@
  * Purpose: Standard `main` function definition. Runs when the executable 
  *          `init-db` is run from the command line.
  */
-int main(int argc, char **argv)
+int main(int argc, char **argv) // 程序入口
 {
     /* 
      * The `char *` format of the variables below allows them to be used as 
      * strings of characterss instead of just holding one single character. 
      * Just think of these as strings.
      */
-    char *sha1_dir, *path;
+    char *sha1_dir, *path; // sha1_dir 保存对象库目录；path 用于拼接子目录路径。
 
     /* Declaring three integers to be used later. */
-    int len, i, fd;
+    int len, i, fd; // len 字符串长度，i 循环计数；fd 未使用
 
     /*
      * Attempt to create a directory called `.dircache` in the current 
      * directory. If it fails, `mkdir()` will return -1 and the program will 
      * print an error message and exit.
      */
-    if (MKDIR(".dircache") < 0) {
+    if (MKDIR(".dircache") < 0) { // 创建仓库目录 .dircache，现在 .git 的前身
         perror("unable to create .dircache");
         exit(1);
     }
@@ -168,15 +171,15 @@ int main(int argc, char **argv)
      * variable is not defined (and it most likely won't be), getenv() will 
      * return a null pointer. 
      */
-    sha1_dir = getenv(DB_ENVIRONMENT);
+    sha1_dir = getenv(DB_ENVIRONMENT); // 读取环境变量 SHA1_FILE_DIRECTORY（在 cache.h 里定义）作为对象库路径。
 
     /*
      * This code block will only be executed if `sha1_dir` is NOT null, i.e., 
      * if the environment variable above was defined.
      */
     if (sha1_dir) {
-        struct stat st;
-        if (!(stat(sha1_dir, &st) < 0) && S_ISDIR(st.st_mode))
+        struct stat st; // 准备检查该路径文件属性。
+        if (!(stat(sha1_dir, &st) < 0) && S_ISDIR(st.st_mode)) // 如果路径存在且是目录。
             return 1;
         fprintf(stderr, "DB_ENVIRONMENT set to bad directory %s: ", sha1_dir);
     }
@@ -190,7 +193,7 @@ int main(int argc, char **argv)
      * Set `sha1_dir` to the default value `.dircache/objects` as defined in 
      * "cache.h", then print a message to the screen conveying this.
      */
-    sha1_dir = DEFAULT_DB_ENVIRONMENT;
+    sha1_dir = DEFAULT_DB_ENVIRONMENT; // 回退到默认对象库存储 .dircache/objects
     fprintf(stderr, "defaulting to private storage area\n");
 
     /*
@@ -199,15 +202,15 @@ int main(int argc, char **argv)
      * subdirectories in the object database, where hash-indexed objects will 
      * be stored.
      */
-    len = strlen(sha1_dir);
+    len = strlen(sha1_dir); // 计算基础路径长度，后续拼接 /xx 用
 
     /*
      * Attempt to create a directory inside `.dircache` called `objects`. If 
      * it fails, `mkdir()` will return `-1` and the program will print a 
      * message and exit.
      */
-    if (MKDIR(sha1_dir) < 0) {
-        if (errno != EEXIST) {
+    if (MKDIR(sha1_dir) < 0) { // 创建 .dircache/objects
+        if (errno != EEXIST) { // 若失败但不是“已存在”
             perror(sha1_dir);
             exit(1);
         }
@@ -217,10 +220,10 @@ int main(int argc, char **argv)
      * Allocate space for `path` with size len` (size in bytes of `sha1_dir`) 
      + + 40 bytes.
      */
-    path = malloc(len + 40);
+    path = malloc(len + 40); // 分配缓冲区，用于装 sha1_dir + "/%02x"
 
     /* Copy the `sha1_dir` to `path`. */
-    memcpy(path, sha1_dir, len);
+    memcpy(path, sha1_dir, len); // 先把基础路径拷进 path 前半段
 
     /*
      * Execute this loop 256 times to create the 256 subdirectories inside the 
@@ -229,7 +232,7 @@ int main(int argc, char **argv)
      * 255. Each subdirectory will be used to hold the objects whose SHA1 hash 
      * values in hexadecimal representation start with those two digits.
      */
-    for (i = 0; i < 256; i++) {
+    for (i = 0; i < 256; i++) { // 循环 256 次，准备建 00 到 ff 子目录。
         /*
          * Convert `i` to a two-digit hexadecimal number and append it to the 
          * path variable after the `.dircache/objects/` part. That way, each 
@@ -237,13 +240,13 @@ int main(int argc, char **argv)
          * `.dircache/objects/00`, `.dircache/objects/01`, ...,
          * `.dircache/objects/fe`, `.dircache/objects/ff`.
          */
-        sprintf(path+len, "/%02x", i);
+        sprintf(path+len, "/%02x", i); // 在基础路径后拼两位十六进制目录名。
 
         /*
          * Attempt to create the current subdirectory. If it fails, `mkdir()` 
          * will return -1 and the program will print a message and exit.
          */
-        if (MKDIR(path) < 0) {
+        if (MKDIR(path) < 0) { // 创建子目录。
             if (errno != EEXIST) {
                 perror(path);
                 exit(1);

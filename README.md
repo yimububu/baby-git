@@ -107,3 +107,7 @@ CFLAGS  = -g -Wall -O3
 # CFLAGS  = -g -Wall # 去掉 -O3 即可
 ```
 2. 重新 make clean & make。因为 obj 和 target 中编译出的旧的带 “-O3” 优化的编译结果，现在 Debug 需要不带 “-O3” 的编译结果。
+
+**补充文档**
+
+- [init-db.c 作用与设计说明](doc/init-db.md)
