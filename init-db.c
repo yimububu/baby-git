@@ -223,7 +223,7 @@ int main(int argc, char **argv) // 程序入口
     path = malloc(len + 40); // 分配缓冲区，用于装 sha1_dir + "/%02x"
 
     /* Copy the `sha1_dir` to `path`. */
-    memcpy(path, sha1_dir, len); // 先把基础路径拷进 path 前半段
+    memcpy(path, sha1_dir, len); // 先把基础路径拷进 path 前半段。它只把前 17 个字节拷到 path 开头，得到这段原始字节：.dircache/objects。这一步不会自动写 \0（因为是 memcpy）
 
     /*
      * Execute this loop 256 times to create the 256 subdirectories inside the 
@@ -240,7 +240,7 @@ int main(int argc, char **argv) // 程序入口
          * `.dircache/objects/00`, `.dircache/objects/01`, ...,
          * `.dircache/objects/fe`, `.dircache/objects/ff`.
          */
-        sprintf(path+len, "/%02x", i); // 在基础路径后拼两位十六进制目录名。
+        sprintf(path+len, "/%02x", i); // 在基础路径后拼两位十六进制目录名。比如 i=0，会在 path[17] 开始写 "/00\0"，最终变成： .dircache/objects/00。
 
         /*
          * Attempt to create the current subdirectory. If it fails, `mkdir()` 
