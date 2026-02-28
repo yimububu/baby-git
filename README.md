@@ -94,7 +94,7 @@ init-db      : init-db.o $(RCOBJ)
    - Target: 选择 Configure Custom Build Targets。**一个空的 Target，目的是骗过 CLion 让它以为构建完成了**
    - Executable (重要): 浏览并选择你编译出来的那个二进制文件（例如 init-db 或 update-cache）。
    - Program arguments: 如果该命令需要参数（比如 update-cache filename.c），在这里填入。对于 init-db 通常不需要参数。
-   - Working directory (非常重要): 确保这里指向的是你的源码根目录。因为 Git 的这些命令会在当前目录下创建 .dircache 目录（Git 早期不叫 .git），路径不对会报错。
+   - Working directory (非常重要): 确保这里指向的是你的源码根目录。**因为 Git 的这些命令会在当前目录下创建 .dircache 目录，debug 不同命令时要注意**（Git 早期不叫 .git），路径不对会报错。
 3. 开始调试：
    - 在源码中（例如 init-db.c 的 main 函数里）点击行号旁边，打上断点。
    - 点击右上角的 绿色虫子图标 (Debug)。

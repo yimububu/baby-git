@@ -265,9 +265,9 @@ static int cache_name_compare(const char *name1, int len1, const char *name2,
     cmp = memcmp(name1, name2, len); // 先比较公共前缀
     if (cmp)           /* First len characters are different. 前缀不同直接返回 */
         return cmp;
-    if (len1 < len2)   /* First len characters are the same. 前缀相同且 name1 更短，返回 -1*/
+    if (len1 < len2)   /* First len characters are the same. 前缀相同且 name1 更短，name1 排在前面*/
         return -1;
-    if (len1 > len2)   /* First len characters are the same. name1 更长，返回 1*/
+    if (len1 > len2)   /* First len characters are the same. name1 更长，name1 排在后面*/
         return 1;
     return 0;          /* Exact match. 完全相同返回 0*/
 }
@@ -279,8 +279,9 @@ static int cache_name_compare(const char *name1, int len1, const char *name2,
  *      -namelen: The length of the path.
  * Purpose: Determine the lexicographic position of a cache entry in the
  *          active_cache array.
+ *          让调用者同时知道两件事：1.有没有找到这个名字；2.如果没找到，应该插到哪里
  */
-static int cache_name_pos(const char *name, int namelen) // 在 active_cache 中找路径位置，二分定位
+static int cache_name_pos(const char *name, int namelen) // 在有序的 active_cache 数组中找路径位置（二分查找），比较函数为‘cache_name_compare’
 {
     /* Declare and initialize the indexes for the binary search. */
     int first, last; // 声明二分边界
@@ -294,14 +295,14 @@ static int cache_name_pos(const char *name, int namelen) // 在 active_cache 中
     while (last > first) { // 二分循环
         int next = (last + first) >> 1;   /* Division by 2. 取中点*/
         struct cache_entry *ce = active_cache[next]; // 取中点元素
-        int cmp = cache_name_compare(name, namelen, ce->name, ce->namelen); // 比较目标路径和中点路径
+        int cmp = cache_name_compare(name, namelen, ce->name, ce->namelen); // 在有序 active_cache 里找 name，找到就返回“已存在编码”，找不到就返回“应插入位置”。
         if (!cmp)            /* Exact match found. */
-            return -next-1; // 相等返回负编码 -next-1（表示“已存在”）
-        if (cmp < 0) { // 目标更小
-            last = next; // 收缩右边界
-            continue; // 继续循环
+            return -next-1; // 负编码表示“已存在”，并携带下标
+        if (cmp < 0) { // 目标在左半区，收缩为 [first, next)
+            last = next;
+            continue;
         }
-        first = next+1; // 否则收缩左边界
+        first = next+1; // 目标在右半区，收缩为 [next+1, last)
     }
     return first; // 返回插入点
 }
@@ -314,7 +315,7 @@ static int cache_name_pos(const char *name, int namelen) // 在 active_cache 中
  */
 static int remove_file_from_cache(char *path) // 从索引删除
 {
-    int pos = cache_name_pos(path, strlen(path)); // 找路径位置
+    int pos = cache_name_pos(path, strlen(path)); // 删除、替换、插入都可复用一个返回值协议。
     if (pos < 0) {   /* If exact match found. 若存在（负编码）*/
         pos = -pos-1; // 还原真实下标
         active_nr--; // 条目数减一
@@ -488,11 +489,11 @@ static int index_fd(const char *path, int namelen, struct cache_entry *ce,
  *          store, and the `add_cache_entry()` function to insert the cache 
  *          entry into the `active_cache` array lexicographically.
  */
-static int add_file_to_cache(char *path) // 单文件
+static int add_file_to_cache(char *path) // 把工作区 path 路径的文件状态同步到索引
 {
     int size, namelen; // 声明尺寸和名字长度
-    /* Used to reference a cache entry. */
-    struct cache_entry *ce; // 声明索引项指针
+    /* Used to reference a cache entry. 声明索引项指针*/
+    struct cache_entry *ce;
     /*
      * Used to store file information obtained through an `fstat()` function 
      * call. 
@@ -502,17 +503,17 @@ static int add_file_to_cache(char *path) // 单文件
     int fd; // 声明 fd
 
     /* Open the file to add to the cache and return a file descriptor. */
-    fd = open(path, O_RDONLY); // 只读打开目标文件
+    fd = open(path, O_RDONLY); // 以只读方式打开目标文件
 
     /*
      * If the `open()` command fails, return -1. Remove the corresponding 
      * cache entry from the active_cache array if the file does not exist in 
      * the working directory.
      */
-    if (fd < 0) { // 打开失败分支
-        if (errno == ENOENT) // 若不存在
-            return remove_file_from_cache(path); // 从索引删除对应路径
-        return -1; // 其他错误返回失败
+    if (fd < 0) { // 打开文件失败
+        if (errno == ENOENT) // 因为文件不存在而导致打开失败，走删除语义
+            return remove_file_from_cache(path); // 在有序索引数组里删除对应路径的索引项并收缩数组（语义是：工作区文件被删除时，索引也同步删除该条目）
+        return -1;
     }
 
     /*
@@ -563,7 +564,7 @@ static int add_file_to_cache(char *path) // 单文件
      * Insert the cache entry into the active_cache array lexicographically
      * and then return using the return value of `add_cache_entry`.
      */
-    return add_cache_entry(ce); // 成功后把条目插入有序 active_cache。
+    return add_cache_entry(ce); // 走“新增/更新语义”，把条目插入/更新到有序 active_cache。
 }
 
 /*
@@ -687,7 +688,7 @@ int main(int argc, char **argv) // 命令入口
      * the open() command returns a value < 0, indicating failure, then return 
      * -1.
      */
-    newfd = OPEN_FILE(cache_lock_file, O_RDWR | O_CREAT | O_EXCL, 0600); // 独占创建锁文件（防并发写）
+    newfd = OPEN_FILE(cache_lock_file, O_RDWR | O_CREAT | O_EXCL, 0600); // 独占创建锁文件（防并发写），锁文件仅当前用户可读写
     if (newfd < 0) { // 创建失败判断
         perror("unable to create new cachefile");
         return -1;

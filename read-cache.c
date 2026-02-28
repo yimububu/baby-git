@@ -669,8 +669,8 @@ static int error(const char * string)
 /*
  * Function: `verify_header`
  * Parameters:
- *      -hdr: A pointer to the cache header structure to validate.
- *      -size: The size in bytes of the cache file.
+ *      -hdr: A pointer to the cache header structure to validate. .dircache/index 头部
+ *      -size: The size in bytes of the cache file. 索引文件总大小
  * Purpose: Validate a cache_header.
  */
 static int verify_hdr(struct cache_header *hdr, unsigned long size)
@@ -682,26 +682,26 @@ static int verify_hdr(struct cache_header *hdr, unsigned long size)
      * Ensure the cache_header's signature matches the value defined in 
      * "cache.h". 
      */
-    if (hdr->signature != CACHE_SIGNATURE)
+    if (hdr->signature != CACHE_SIGNATURE) // 校验签名
         return error("bad signature");
 
     /* Ensure the cache_header was created with the correct version of Git. */
-    if (hdr->version != 1)
+    if (hdr->version != 1) // 校验版本
         return error("bad version");
 
     /* Initialize the SHA context `c`. */
     SHA1_Init(&c); 
 
     /* Calculate the hash of the cache header and cache entries. */ 
-    SHA1_Update(&c, hdr, offsetof(struct cache_header, sha1));
-    SHA1_Update(&c, hdr+1, size - sizeof(*hdr));
-    SHA1_Final(sha1, &c);
+    SHA1_Update(&c, hdr, offsetof(struct cache_header, sha1)); // 先把头部前 12 字节喂入哈希（signature+version+entries），不包含 hdr->sha1 字段本身
+    SHA1_Update(&c, hdr+1, size - sizeof(*hdr)); // 把“头后面的全部 entry 数据区”喂入哈希。
+    SHA1_Final(sha1, &c); // 得到重新计算的 20 字节摘要
 
     /*
      * Compare the SHA1 hash calculated above to the SHA1 hash stored in the 
      * cache header. If they match, then the cache is valid.
      */
-    if (memcmp(sha1, hdr->sha1, 20))
+    if (memcmp(sha1, hdr->sha1, 20)) // 与头中保存的校验值比较
         return error("bad header sha1");
     return 0;
 }
@@ -728,6 +728,10 @@ int read_cache(void)
 
     /* Check if active_cache array is already populated. */
     errno = EBUSY;
+    /**
+     * cache_entry active_cache 指向“很多个索引项指针”的数组首元素
+     * 防止重复加载：若 active_cache 已非空，直接报错返回（EBUSY 语义）。它不是指磁盘上有多个 .dircache/index 文件，而是指这套全局内存模型只允许“加载一次索引”。
+     */
     if (active_cache) 
         return error("more than one cachefile");
 
@@ -740,8 +744,8 @@ int read_cache(void)
     errno = ENOENT;
     sha1_file_directory = getenv(DB_ENVIRONMENT);
     if (!sha1_file_directory)
-        sha1_file_directory = DEFAULT_DB_ENVIRONMENT;
-    if (access(sha1_file_directory, X_OK) < 0)
+        sha1_file_directory = DEFAULT_DB_ENVIRONMENT; // 初始化对象库路径
+    if (access(sha1_file_directory, X_OK) < 0) // 检查可访问
         return error("no access to SHA1 file directory");
 
     /*
@@ -749,7 +753,7 @@ int read_cache(void)
      * file descriptor (just an integer).
      */
     #ifndef BGIT_WINDOWS
-    fd = open(".dircache/index", O_RDONLY );
+    fd = open(".dircache/index", O_RDONLY ); // 打开索引文件
     #else
     fd = open(".dircache/index", O_RDONLY | O_BINARY );
     #endif
@@ -757,7 +761,7 @@ int read_cache(void)
      * Return if file does not exist or if there was an error opening the
      * file.
      */
-    if (fd < 0)
+    if (fd < 0) // 一开始 index 文件不存在，按空索引处理，返回 0，允许第一次创建索引文件
         return (errno == ENOENT) ? 0 : error("open failed");
 
     /*
@@ -783,7 +787,7 @@ int read_cache(void)
          * Set `size` equal to the `st_size` member of the `st` structure, 
          * which is the size of the `.dircache/index` file in bytes.
          */
-        size = st.st_size;
+        size = st.st_size; // .dircache/index 文件总字节数
 
         /*
          * Preset the error code to be returned to invalid argument if an 
@@ -797,7 +801,7 @@ int read_cache(void)
          * for a valid cache since it must be made up of a cache header and 
          * at least one cache entry.
          */
-        if (size > sizeof(struct cache_header)) {
+        if (size > sizeof(struct cache_header)) { // 只有当文件“头部之外还有内容”才去 mmap，也就是“至少有 1 个 entry”才是有效索引
             /*
              * Map the contents of the `.dircache/index` cache file to memory 
              * and return a pointer to that space. For more details on the
@@ -809,7 +813,7 @@ int read_cache(void)
              * when-should-i-use-mmap-for-file-access
              */
             #ifndef BGIT_WINDOWS
-            map = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+            map = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0); // 把文件 fd 的一段内容映射到进程内存里，像访问内存一样访问文件内容
             #else
             void *fhandle 
                 = CreateFileMapping( (HANDLE) _get_osfhandle(fd), 
